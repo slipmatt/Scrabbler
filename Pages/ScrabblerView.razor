@@ -1,0 +1,204 @@
+﻿@page "/scrabblerview"
+
+@using Scrabbler.Data
+@inject PlayerService PlayerService
+@inject TileService TileService
+<div class="row">
+    <div class="col-4">
+        <input type="text" class="form-control" @bind="name" />
+        <button class="btn btn-outline-success" @onclick="e => AddPlayer(name)">Add Player</button>
+    </div>
+</div>
+@if (players.Count == 0)
+{
+    <p><em>No Players</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Words</th>
+                <th>Points</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var player in players)
+            {
+                <tr>
+                    <td>@player.Name</td>
+                    <td>
+                        @foreach (var word in player.Words)
+                        {
+                            <button class="btn btn-outline-danger" @onclick="e => RemoveWord(player.Name, word)" title="Remove word">@string.Format("{0}", word) &times;</button>
+                        }
+                    </td>
+                    <td>@player.Points</td>
+                    <td>
+                        <button class="btn btn-primary" @onclick="e => showAddWord(player.Name)">Add Word</button>
+
+                        <button class="btn btn-danger" @onclick="e => RemovePlayer(player.Name)" title="Remove player">&times;</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+
+@if (tiles == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-3">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Letter</th>
+                        <th>Points</th>
+                        <th>Left</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var tile in tiles)
+                    {
+                        <tr>
+                            <td>@tile.Letter</td>
+                            <td>@tile.Points</td>
+                            <td>@tile.Instances</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+<div hidden="@AddWordModalHidden">
+    <transition name="modal">
+        <div class="modal-mask">
+            <div class="modal-wrapper">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <button type="button" class="close" v-on:click="showModal=false">
+                                <span aria-hidden="true" @bind="unShowAddWord">&times;</span>
+                            </button>
+                            <h4 class="modal-title">Add Word</h4>
+                        </div>
+                        <div class="modal-body">
+                            <label>Word</label>
+                            <input type="text" class="form-control" @bind="selectedWord" @onblur="e => PreviewWord(selectedWord)" title="Word" />
+                            @String.Format("{0} points", PreviewWord(selectedWord))
+                        <div>
+                            <label>Letter options</label>
+                            <br />
+
+                            @{var index = 0; }
+                            @foreach (var c in selectedWord)
+                            {
+                                <div>
+                                    <span>@c.ToString() <small>@PreviewWord(c.ToString())</small></span>
+                                </div>
+                                index++;
+                            }
+
+                        </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-outline-success" @onclick="e=>AddWord(selectedName, selectedWord)">Add Word</button>
+                            <button class="btn btn-outline-danger" @onclick="e=>unShowAddWord()">Cancel</button>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </transition>
+</div>
+
+@code {
+    private List<TileModel> tiles;
+    private List<PlayerModel> players;
+    private string name;
+    private string selectedName;
+    private string selectedWord;
+    private bool AddWordModalHidden;
+
+    protected override void OnInitialized()
+    {
+        AddWordModalHidden = true;
+        tiles = TileService.DistributeTiles();
+        players = PlayerService.ResetPlayers();
+        selectedWord = "";
+        selectedName = "";
+        name = "";
+    }
+
+    protected void AddPlayer(string playerName)
+    {
+        PlayerService.AddPlayer(playerName);
+        name = "";
+    }
+
+    protected void RemovePlayer(string playerName)
+    {
+        PlayerService.RemovePlayer(playerName);
+    }
+
+    protected void AddWord(string playerName, string word)
+    {
+        if (playerName == null || word == null) return;
+        var points = UseTiles(word);
+        PlayerService.AddWord(playerName, word, points);
+        selectedWord = "";
+        unShowAddWord();
+    }
+
+    protected void RemoveWord(string playerName, string word)
+    {
+        var points = UnuseTiles(word);
+        PlayerService.RemoveWord(playerName, word, points);
+        selectedWord = "";
+    }
+
+    protected void showAddWord(string playerName)
+    {
+        AddWordModalHidden = false;
+        selectedName = playerName;
+        InvokeAsync(() =>
+        {
+            this.StateHasChanged();
+        });
+    }
+    protected void unShowAddWord()
+    {
+        AddWordModalHidden = true;
+        selectedName = "";
+        InvokeAsync(() =>
+        {
+            this.StateHasChanged();
+        });
+    }
+
+
+    protected int PreviewWord(string word)
+    {
+        if (word == string.Empty || word == null) return 0;
+        return TileService.PreviewTiles(word);
+    }
+
+    protected int UseTiles(string word)
+    {
+        if (word == string.Empty || word == null) return 0;
+        return TileService.UseTiles(word);
+    }
+    protected int UnuseTiles(string word)
+    {
+        if (word == string.Empty || word == null) return 0;
+        return TileService.UnuseTiles(word);
+    }
+}
